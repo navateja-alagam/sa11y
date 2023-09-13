@@ -103,3 +103,18 @@ export class A11yError extends Error {
             .join('\n\n');
     }
 }
+
+/**
+ *  Custom error object to represent empty dom a11y trigger
+ */
+export class EmptyDOMA11yError extends Error {
+    static throwEmptyDOMError(): void {
+        throw new EmptyDOMA11yError();
+    }
+
+    constructor() {
+        super('Running Sa11y on Empty DOM');
+        this.name = EmptyDOMA11yError.name;
+        this.message = 'Running Sa11y on Empty DOM';
+    }
+}

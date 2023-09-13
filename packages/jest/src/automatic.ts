@@ -7,7 +7,7 @@
 
 import { AxeResults, log } from '@sa11y/common';
 import { getViolationsJSDOM } from '@sa11y/assert';
-import { A11yError } from '@sa11y/format';
+import { A11yError, EmptyDOMA11yError } from '@sa11y/format';
 import { isTestUsingFakeTimer } from './matcher';
 import { expect } from '@jest/globals';
 import { adaptA11yConfig } from './setup';
@@ -68,8 +68,10 @@ export async function automaticCheck(opts: AutoCheckOpts = defaultAutoCheckOpts)
     // Create a DOM walker filtering only elements (skipping text, comment nodes etc)
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
     let currNode = walker.firstChild();
+    let isDocumentContentExists = false;
     try {
         while (currNode !== null) {
+            isDocumentContentExists = true;
             // TODO (spike): Use a logger lib with log levels selectable at runtime
             // console.log(
             //     `♿ [DEBUG] Automatically checking a11y of ${currNode.nodeName}
@@ -85,7 +87,11 @@ export async function automaticCheck(opts: AutoCheckOpts = defaultAutoCheckOpts)
         // TODO (spike): Disable stack trace for automatic checks.
         //  Will this affect all errors globally?
         // Error.stackTraceLimit = 0;
-        A11yError.checkAndThrow(violations, { deduplicate: opts.consolidateResults });
+        if (isDocumentContentExists) {
+            A11yError.checkAndThrow(violations, { deduplicate: opts.consolidateResults });
+        } else {
+            EmptyDOMA11yError.throwEmptyDOMError();
+        }
     }
 }
 

@@ -5,6 +5,6 @@
  * For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-export { A11yError, Options } from './format';
+export { A11yError, EmptyDOMA11yError, Options } from './format';
 export { exceptionListFilter } from './filter';
 export { A11yResult, A11yResults } from './result';
