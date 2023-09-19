@@ -1,3 +1,8 @@
+/* eslint-disable eslint-comments/disable-enable-pair */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable prefer-rest-params */
+/* eslint-disable @typescript-eslint/unbound-method */
 /*
  * Copyright (c) 2020, salesforce.com, inc.
  * All rights reserved.
@@ -7,7 +12,12 @@
 
 import { toBeAccessible } from './matcher';
 import { A11yConfig } from '@sa11y/common';
-import { AutoCheckOpts, registerSa11yAutomaticChecks } from './automatic';
+import {
+    AutoCheckOpts,
+    registerSa11yAutomaticChecks,
+    getOriginalDocumentBodyHtml,
+    setOriginalDocumentBodyHtml,
+} from './automatic';
 import { expect } from '@jest/globals';
 
 export const disabledRules = [
@@ -51,11 +61,28 @@ const defaultSa11yOpts: Sa11yOpts = {
     },
 };
 
+function registerRemoveChild() {
+    const originalRemoveChild = Element.prototype.removeChild;
+
+    (Element.prototype as any).removeChild = function (oldChild: Node): Node {
+        if (oldChild.parentNode === this) {
+            // Your custom implementation here
+            console.log('Custom removeChild method called');
+            if (!getOriginalDocumentBodyHtml()) {
+                setOriginalDocumentBodyHtml(document?.body?.innerHTML ?? '');
+            }
+        }
+
+        return originalRemoveChild.call(this, oldChild);
+    };
+}
+
 /**
  * Register Sa11y Jest API and automatic checks depending on {@link Sa11yOpts}
  * @param opts - {@link Sa11yOpts} to opt-in to automatic checks
  */
 export function setup(opts: Sa11yOpts = defaultSa11yOpts): void {
+    registerRemoveChild();
     registerSa11yMatcher();
     // Set defaults from env vars
     const autoCheckOpts = opts.autoCheckOpts;
