@@ -6,7 +6,7 @@
  */
 import { AggregatedResult, AssertionResult, TestResult } from '@jest/test-result';
 import { log } from '@sa11y/common';
-import { A11yError, EmptyDOMA11yError } from '@sa11y/format';
+import { A11yError } from '@sa11y/format';
 
 type FailureDetail = {
     error?: A11yError;
@@ -108,9 +108,6 @@ function processA11yErrors(results: AggregatedResult, testSuite: TestResult, tes
             Questions? Post on Accessibility Team Chatter: https://sfdc.co/a11y-gus
             `;
             a11yFailureMessages.push(a11yFailureMessage);
-        }
-        if (error.name === EmptyDOMA11yError.name) {
-            a11yFailureDetails.push({ ...(failure as FailureDetail) } as FailureDetail);
         }
     });
     if (!a11yErrorsExist) {

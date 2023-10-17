@@ -67,7 +67,6 @@ function registerRemoveChild() {
     (Element.prototype as any).removeChild = function (oldChild: Node): Node {
         if (oldChild.parentNode === this) {
             // Your custom implementation here
-            console.log('Custom removeChild method called');
             if (!getOriginalDocumentBodyHtml()) {
                 setOriginalDocumentBodyHtml(document?.body?.innerHTML ?? '');
             }
