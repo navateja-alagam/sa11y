@@ -12,6 +12,7 @@ import { isTestUsingFakeTimer } from './matcher';
 import { expect } from '@jest/globals';
 import { adaptA11yConfig, adaptA11yConfigCustomRules } from './setup';
 import { defaultRuleset } from '@sa11y/preset-rules';
+import { Mutex, withTimeout, E_CANCELED } from 'async-mutex';
 
 /**
  * Options for Automatic checks to be passed to {@link registerSa11yAutomaticChecks}
@@ -100,6 +101,34 @@ export async function automaticCheck(opts: AutoCheckOpts = defaultAutoCheckOpts)
                 );
             currNode = walker.nextSibling();
         }
+
+        // for (let i=0; i<mutatedNodes.length; i++) {
+        //     // TODO (spike): Use a logger lib with log levels selectable at runtime
+        //     // console.log(
+        //     //     `♿ [DEBUG] Automatically checking a11y of ${currNode.nodeName}
+        //     //      for test "${expect.getState().currentTestName}"
+        //     //      : ${testPath}`
+        //     // );
+        //     // W-10004832 - Exclude descendancy based rules from automatic checks
+        //     // console.log('FINAL  mutatedNodes.length -- ' + mutatedNodes.length);
+        //     if(mutatedNodes[i].innerHTML) {
+        //         console.log(' mutatedNodes[i].innerHTML -- ' +  mutatedNodes[i].innerHTML);
+        //         console.log(' mutatedNodes[i].outerHTML -- ' +  mutatedNodes[i].outerHTML);
+        //         // if(mutatedNodes[i].shadowRoot) {
+        //         //     console.log(' mutatedNodes[i].shadowRoot.innerHTML -- ' +  mutatedNodes[i].shadowRoot.innerHTML);
+        //         // }
+        //     document.body.innerHTML = mutatedNodes[i].outerHTML;
+        //     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+        //     let currNode = walker.firstChild();
+        //     while (currNode !== null) {
+        //     if (customRules.length === 0)
+        //         violations.push(...(await (0, assert_1.getViolationsJSDOM)(currNode, (0, setup_1.adaptA11yConfig)(preset_rules_1.defaultRuleset))));
+        //     else
+        //         violations.push(...(await (0, assert_1.getViolationsJSDOM)(currNode, (0, setup_1.adaptA11yConfigCustomRules)(preset_rules_1.defaultRuleset, customRules))));
+        //     currNode = walker.nextSibling();
+        //     }
+        // }
+        // }
     } finally {
         setOriginalDocumentBodyHtml(null);
         document.body.innerHTML = currentDocumentHtml;
@@ -117,6 +146,44 @@ export async function automaticCheck(opts: AutoCheckOpts = defaultAutoCheckOpts)
     }
 }
 
+const mutexTimeout = 5000;
+const mutex = withTimeout(new Mutex(), mutexTimeout, new Error('Timed-out waiting for axe'));
+
+function observerCallback(mutations: MutationRecord[], _observer: MutationObserver) {
+    const violations: AxeResults = []; // TODO (refactor): move to global/test scope
+    for (const mutation of mutations) {
+        // log('Mutation event triggered on', mutation.target.nodeName);
+        for (const node of mutation.addedNodes) {
+            getViolationsJSDOM(node, adaptA11yConfig(defaultRuleset))
+                .then((violationErrors) => violations.push(...violationErrors))
+                .catch((err) => {
+                    if (err == E_CANCELED) {
+                        console.log('Mutex cancelled');
+                        return;
+                    }
+                    console.log('Error:', err);
+                });
+        }
+    }
+
+    A11yError.checkAndThrow(violations);
+
+    // for (const mutation of mutations) {
+    // for (const node of mutation.addedNodes) {
+    // mutatedNodes.push(node);
+    // }
+    // }
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/API/MutationObserverInit
+const observerOptions: MutationObserverInit = {
+    subtree: true, // extend monitoring to the entire subtree of nodes rooted at target
+    childList: true, // monitor target node for addition/removal of child nodes
+    // TODO (feat): Add option to enable monitoring selected attribute changes
+    attributes: true, // monitor changes to the value of attributes of nodes
+    characterData: true, // monitor changes to the character data contained within nodes
+};
+
 /**
  * Register accessibility checks to be run automatically after each test
  * @param opts - Options for automatic checks {@link AutoCheckOpts}
@@ -124,9 +191,23 @@ export async function automaticCheck(opts: AutoCheckOpts = defaultAutoCheckOpts)
 export function registerSa11yAutomaticChecks(opts: AutoCheckOpts = defaultAutoCheckOpts): void {
     if (opts.runAfterEach) {
         // TODO (fix): Make registration idempotent
+        const observer = new MutationObserver(observerCallback);
         log('Registering sa11y checks to be run automatically after each test');
-        afterEach(async () => {
-            await automaticCheck(opts);
+        // afterEach(async () => {
+        //     await automaticCheck(opts);
+        // });
+        beforeEach(() => {
+            observer.observe(document.body, observerOptions);
+        });
+
+        afterEach(() => {
+            observer.disconnect(); // stop mutation observer
+            mutex.cancel();
+            // Give time for mutex executions to complete
+            // await new Promise((r) => setTimeout(r, mutexTimeout));
+            // await mutex.waitForUnlock();
+            // mutex.cancel(); // cancelling pending locks
+            // await automaticCheck(opts);
         });
     }
 }

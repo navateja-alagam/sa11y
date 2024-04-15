@@ -9,6 +9,7 @@ import * as axe from 'axe-core';
 import { defaultRuleset } from '@sa11y/preset-rules';
 import { A11yError, exceptionListFilterSelectorKeywords } from '@sa11y/format';
 import { A11yConfig, AxeResults, getViolations } from '@sa11y/common';
+import { MutexInterface } from 'async-mutex';
 
 /**
  * Context that can be checked for accessibility: Document, Node or CSS selector.
@@ -24,10 +25,20 @@ export type A11yCheckableContext = Document | Node | string;
  */
 export async function getViolationsJSDOM(
     context: A11yCheckableContext = document,
-    rules: A11yConfig = defaultRuleset
+    rules: A11yConfig = defaultRuleset,
+    mutex?: MutexInterface
 ): Promise<AxeResults> {
     return await getViolations(async () => {
-        const results = await axe.run(context as axe.ElementContext, rules as axe.RunOptions);
+        // const results = await axe.run(context as axe.ElementContext, rules as axe.RunOptions);
+        let results;
+        if (mutex) {
+            // 4. Use mutex closer to axe invocation
+            results = await mutex.runExclusive(
+                async () => await axe.run(context as axe.ElementContext, rules as axe.RunOptions)
+            );
+        } else {
+            results = await axe.run(context as axe.ElementContext, rules as axe.RunOptions);
+        }
         return results.violations;
     });
 }
